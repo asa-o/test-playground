@@ -31,26 +31,29 @@ func fetchHTML(url string) (*html.Node, error) {
 }
 
 // テキストを抽出して出力
-func extractText(n *html.Node) {
-    if n.Type == html.TextNode {
-        fmt.Println(n.Data)
-    }
+func extractTextToFile(n *html.Node, file *os.File) {
+    fmt.Fprintf(file, "Type: %v, Data: %s\n", n.Type, n.Data)
     for c := n.FirstChild; c != nil; c = c.NextSibling {
-		extractText(c)
+		extractTextToFile(c, file)
     }
-
 }
 
 
 func main() {
-    err := godotenv.Load()
+    godotenv.Load()
     url := os.Getenv("TEST_URL")
     doc, err := fetchHTML(url)
     if err != nil {
         log.Fatalf("Error fetching HTML: %v", err)
     }
 
-    extractText(doc)
+    file, err := os.Create("bin/output.txt")
+    if err != nil {
+        log.Fatalf("Error creating file: %v", err)
+    }
+    defer file.Close()
+
+    extractTextToFile(doc, file)
 }
 
 
