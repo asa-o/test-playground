@@ -2,58 +2,89 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 
+	"github.com/gocolly/colly"
 	"github.com/joho/godotenv"
-	"golang.org/x/net/html"
 )
 
-// 指定したURLからHTMLを取得
-func fetchHTML(url string) (*html.Node, error) {
-    resp, err := http.Get(url)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-
-    if resp.StatusCode != http.StatusOK {
-        return nil, fmt.Errorf("failed to fetch URL: %s", resp.Status)
-    }
-
-    doc, err := html.Parse(resp.Body)
-    if err != nil {
-        return nil, err
-    }
-
-	return doc, nil
+type Item struct {
+	Link   string
+	ImgSrc string
+	Name   string
 }
 
-// テキストを抽出して出力
-func extractTextToFile(n *html.Node, file *os.File) {
-    fmt.Fprintf(file, "Type: %v, Data: %s\n", n.Type, n.Data)
-    for c := n.FirstChild; c != nil; c = c.NextSibling {
-		extractTextToFile(c, file)
-    }
-}
+func downloadImage(url, filepath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
+	file, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func main() {
-    godotenv.Load()
-    url := os.Getenv("TEST_URL")
-    doc, err := fetchHTML(url)
-    if err != nil {
-        log.Fatalf("Error fetching HTML: %v", err)
-    }
+	godotenv.Load()
+
+	c := colly.NewCollector(
+		colly.AllowURLRevisit(),
+	)
+
+	c.Visit(os.Getenv("LOGIN_URL"))
+
+	cookies := c.Cookies(os.Getenv("TOP_URL"))
+	for _, cookie := range cookies {
+		fmt.Printf("Cookie: %s = %s\n", cookie.Name, cookie.Value)
+	}
+
+    var items []Item
+
+	c.OnHTML("li.item", func(e *colly.HTMLElement) {
+		item := Item{
+			Link:   e.ChildAttr("a", "href"),
+			ImgSrc: e.ChildAttr("img", "src"),
+			Name:   e.ChildText("div.name"),
+		}
+		items = append(items, item)
+
+		imagePath := fmt.Sprintf("bin/images/%s.jpg", item.Name)
+		err := downloadImage(item.ImgSrc, imagePath)
+		if err != nil {
+			log.Printf("Error downloading image: %v", err)
+		} else {
+			fmt.Printf("Image saved to %s\n", imagePath)
+		}
+	})
+
+	c.OnError(func(_ *colly.Response, err error) {
+		log.Fatalf("Error fetching URL: %v", err)
+	})
+
+	c.Visit(os.Getenv("EFFECT_LIST_URL"))
 
     file, err := os.Create("bin/output.txt")
     if err != nil {
         log.Fatalf("Error creating file: %v", err)
     }
     defer file.Close()
-
-    extractTextToFile(doc, file)
+	for _, item := range items {
+		fmt.Fprintf(file, "Link: %s\nImage: %s\nName: %s\n\n", item.Link, item.ImgSrc, item.Name)
+	}
 }
 
 
