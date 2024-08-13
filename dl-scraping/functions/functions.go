@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,9 +13,11 @@ import (
 	"regexp"
 	"sync"
 
+	"cloud.google.com/go/firestore"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"github.com/gocolly/colly"
 	"github.com/joho/godotenv"
+	"google.golang.org/api/option"
 )
 
 type Response struct {
@@ -73,6 +77,29 @@ func downloadImage(url, filepath string) error {
 func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	godotenv.Load()
 
+	// 秘密鍵は環境変数にbase64エンコードして格納
+	encodedServiceAccountKey := os.Getenv("SERVICE_ACCOUNT_KEY")
+	if encodedServiceAccountKey == "" {
+		http.Error(w, "Service account key is not set", http.StatusInternalServerError)
+		return
+	}
+
+	// 秘密鍵のデコード
+	serviceAccountKey, err := base64.StdEncoding.DecodeString(encodedServiceAccountKey)
+	if err != nil {
+		http.Error(w, "Failed to decode service account key", http.StatusInternalServerError)
+		return
+	}
+
+	// Firestoreクライアントの初期化
+	ctx := context.Background()
+	sa := option.WithCredentialsJSON(serviceAccountKey)
+	client, err := firestore.NewClient(ctx, "asa-o-experiment", sa)
+	if err != nil {
+		log.Fatalf("Failed to create Firestore client: %v", err)
+	}
+	defer client.Close()
+
 	c := colly.NewCollector(
 		colly.AllowURLRevisit(),
 	)
@@ -130,6 +157,14 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		DlSecKey: dlSecKey,
 		Effects:  effects,
+	}
+
+	_, _, err = client.Collection("effects").Add(ctx, map[string]interface{}{
+		"dlSecKey": response.DlSecKey,
+		"effects":  response.Effects,
+	})
+	if err != nil {
+		log.Fatalf("Failed adding data to Firestore: %v", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
