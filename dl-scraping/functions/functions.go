@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/storage"
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"github.com/gocolly/colly"
 	"github.com/joho/godotenv"
@@ -53,20 +54,19 @@ func extractIdFromImgSrc(imgSrc string) string {
 	return ""
 }
 
-func downloadImage(url, filepath string) error {
+func downloadImage(ctx context.Context, client *storage.Client, bucketName, url, objectName string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	bucket := client.Bucket(bucketName)
+	object := bucket.Object(objectName)
+	writer := object.NewWriter(ctx)
+	defer writer.Close()
 
-	_, err = io.Copy(file, resp.Body)
+	_, err = io.Copy(writer, resp.Body)
 	if err != nil {
 		return err
 	}
@@ -100,6 +100,13 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	}
 	defer client.Close()
 
+	// Storageクライアントの初期化
+	storageClient, err := storage.NewClient(ctx, sa)
+	if err != nil {
+		log.Fatalf("Failed to create Storage client: %v", err)
+	}
+	defer storageClient.Close()
+
 	c := colly.NewCollector(
 		colly.AllowURLRevisit(),
 	)
@@ -130,12 +137,12 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 			dlSecKey = u.Query().Get("__DL__SEC__KEY__")
 		})
 
-		imagePath := fmt.Sprintf("bin/images/%s.jpg", info.Name)
-		err := downloadImage(fmt.Sprintf(imgUrl, info.Id), imagePath)
+		objectName := fmt.Sprintf("images/%s.jpg", info.Name)
+		err := downloadImage(ctx, storageClient, "asa-o-experiment.appspot.com", fmt.Sprintf(imgUrl, info.Id), objectName)
 		if err != nil {
 			log.Printf("Error downloading image: %v", err)
 		} else {
-			fmt.Printf("Image saved to %s\n", imagePath)
+			fmt.Printf("Image saved to Firebase Storage: %s\n", objectName)
 		}
 	})
 
