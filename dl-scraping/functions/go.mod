@@ -1,16 +1,14 @@
-module asa-o.net/dl-scraping
+module asa-o.net/dl-scraping/functions
 
 go 1.22.6
 
-replace asa-o.net/dl-scraping/functions/functions => ./functions
-
 require (
-	asa-o.net/dl-scraping/functions/functions v0.0.0-00010101000000-000000000000
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.0
+	github.com/gocolly/colly v1.2.0
+	github.com/joho/godotenv v1.5.1
 )
 
 require (
-	cloud.google.com/go/functions v1.16.6 // indirect
 	github.com/PuerkitoBio/goquery v1.9.2 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/antchfx/htmlquery v1.3.2 // indirect
@@ -18,11 +16,9 @@ require (
 	github.com/antchfx/xpath v1.3.1 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/gocolly/colly v1.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
@@ -35,5 +31,5 @@ require (
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
+	google.golang.org/protobuf v1.26.0 // indirect
 )

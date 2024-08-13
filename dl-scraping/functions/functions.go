@@ -1,4 +1,4 @@
-package main
+package functions
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"github.com/gocolly/colly"
 	"github.com/joho/godotenv"
 )
@@ -15,6 +16,10 @@ type Item struct {
 	Link   string
 	ImgSrc string
 	Name   string
+}
+
+func init() {
+	functions.HTTP("GetEffectList", GetEffectList)
 }
 
 func downloadImage(url, filepath string) error {

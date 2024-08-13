@@ -1,0 +1,6 @@
+.gcloudignore
+main.go
+bin/
+memo/
+.env
+.gitignore
