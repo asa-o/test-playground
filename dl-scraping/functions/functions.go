@@ -1,25 +1,52 @@
 package functions
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
+	"sync"
 
 	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"github.com/gocolly/colly"
 	"github.com/joho/godotenv"
 )
 
-type Item struct {
-	Link   string
-	ImgSrc string
+type Response struct {
+	DlSecKey string       `json:"dlSecKey"`
+	Effects  []EffectInfo `json:"effects"`
+}
+
+type EffectInfo struct {
 	Name   string
+	Id     string
+	HashId string
 }
 
 func init() {
 	functions.HTTP("GetEffectList", GetEffectList)
+}
+
+func extractHashId(link string) string {
+	u, err := url.Parse(link)
+	if err != nil {
+		log.Printf("Error parsing URL: %v", err)
+		return ""
+	}
+	return u.Query().Get("ti")
+}
+
+func extractIdFromImgSrc(imgSrc string) string {
+	re := regexp.MustCompile(`theme_(\d+)\.jpg`)
+	matches := re.FindStringSubmatch(imgSrc)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
 }
 
 func downloadImage(url, filepath string) error {
@@ -57,18 +84,27 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Cookie: %s = %s\n", cookie.Name, cookie.Value)
 	}
 
-	var items []Item
+	var effects []EffectInfo
+	imgUrl := os.Getenv("EFFECT_IMAGE_URL")
+	var dlSecKey string
+	var dlSecKeyOnce sync.Once
 
 	c.OnHTML("li.item", func(e *colly.HTMLElement) {
-		item := Item{
-			Link:   e.ChildAttr("a", "href"),
-			ImgSrc: e.ChildAttr("img", "src"),
+		info := EffectInfo{
 			Name:   e.ChildText("div.name"),
+			Id:     extractIdFromImgSrc(e.ChildAttr("img", "src")),
+			HashId: extractHashId(e.ChildAttr("a", "href")),
 		}
-		items = append(items, item)
+		effects = append(effects, info)
 
-		imagePath := fmt.Sprintf("bin/images/%s.jpg", item.Name)
-		err := downloadImage(item.ImgSrc, imagePath)
+		dlSecKeyOnce.Do(func() {
+			link := e.ChildAttr("a", "href")
+			u, _ := url.Parse(link)
+			dlSecKey = u.Query().Get("__DL__SEC__KEY__")
+		})
+
+		imagePath := fmt.Sprintf("bin/images/%s.jpg", info.Name)
+		err := downloadImage(fmt.Sprintf(imgUrl, info.Id), imagePath)
 		if err != nil {
 			log.Printf("Error downloading image: %v", err)
 		} else {
@@ -87,7 +123,17 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Error creating file: %v", err)
 	}
 	defer file.Close()
-	for _, item := range items {
-		fmt.Fprintf(file, "Link: %s\nImage: %s\nName: %s\n\n", item.Link, item.ImgSrc, item.Name)
+	for _, info := range effects {
+		fmt.Fprintf(file, "HashId: %s\nId: %s\nName: %s\n\n", info.HashId, info.Id, info.Name)
+	}
+
+	response := Response{
+		DlSecKey: dlSecKey,
+		Effects:  effects,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
