@@ -14,7 +14,7 @@ func main() {
 
 	// 関数を登録
 	funcframework.RegisterHTTPFunctionContext(ctx, "/", functions.GetEffectList)
-	port := "8080"
+	port := "8081"
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = envPort
 	}
