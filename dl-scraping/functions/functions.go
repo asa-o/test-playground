@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"sync"
 
 	"cloud.google.com/go/firestore"
@@ -211,6 +212,7 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 			HashId: extractHashId(e.ChildAttr("a", "href")),
 		}
 		effects = append(effects, info)
+		fmt.Println(info.Name)
 
 		dlSecKeyOnce.Do(func() {
 			link := e.ChildAttr("a", "href")
@@ -248,23 +250,7 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Error fetching URL: %v", err)
 	})
 
-	c.Visit(os.Getenv("EFFECT_LIST_URL"))
-
-	file, err := os.Create("bin/output.txt")
-	if err != nil {
-		log.Fatalf("Error creating file: %v", err)
-	}
-	defer file.Close()
-	for _, info := range effects {
-		fmt.Fprintf(file, "HashId: %s\nId: %s\nName: %s\n\n", info.HashId, info.Id, info.Name)
-	}
-	// err = downloadFileFromStorage(ctx, storageClient, "asa-o-experiment.appspot.com",
-	// 	"images/LUPINⅢ1st Fujiko.jpg", "bin/images/LUPINⅢ1st Fujiko.jpg")
-	// if err != nil {
-	// 	log.Fatalf("Failed to download file from Firebase Storage: %v", err)
-	// } else {
-	// 	fmt.Println("File downloaded successfully")
-	// }
+	c.Visit(os.Getenv("EFFECT_LIST_URL") + strconv.Itoa(request.Page))
 
 	response := Response{
 		SessionId: sessionId,
