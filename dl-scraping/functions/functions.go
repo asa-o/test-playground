@@ -22,14 +22,23 @@ import (
 )
 
 type Response struct {
-	DlSecKey string       `json:"dlSecKey"`
-	Effects  []EffectInfo `json:"effects"`
+	SessionId string       `json:"sessionId"`
+	DlSecKey  string       `json:"dlSecKey"`
+	Effects   []EffectInfo `json:"effects"`
+	IsNext    bool         `json:"isNext"`
 }
 
 type EffectInfo struct {
 	Name   string
 	Id     string
 	HashId string
+}
+
+type RequestInfo struct {
+	SessionId   string `json:"sessionId"`
+	Page        int    `json:"page"`
+	MailAddress string `json:"mailAddress"`
+	Password    string `json:"password"`
 }
 
 func init() {
@@ -54,6 +63,50 @@ func extractIdFromImgSrc(imgSrc string) string {
 	return ""
 }
 
+func downloadFileFromStorage(ctx context.Context, client *storage.Client, bucketName, objectName, localFilePath string) error {
+	bucket := client.Bucket(bucketName)
+	object := bucket.Object(objectName)
+	reader, err := object.NewReader(ctx)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	file, err := os.Create(localFilePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, reader)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func downloadImageLocal(url, filepath string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	file, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func downloadImage(ctx context.Context, client *storage.Client, bucketName, url, objectName string) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -74,7 +127,24 @@ func downloadImage(ctx context.Context, client *storage.Client, bucketName, url,
 	return nil
 }
 
+func buildLoginUrl(mailAddress string, password string) string {
+	return fmt.Sprintf(os.Getenv("LOGIN_URL"), mailAddress, password)
+}
+
 func GetEffectList(w http.ResponseWriter, r *http.Request) {
+	// リクエストメソッドのチェック
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// JSONデコード
+	var request RequestInfo
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
 	godotenv.Load()
 
 	// 秘密鍵は環境変数にbase64エンコードして格納
@@ -111,11 +181,22 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 		colly.AllowURLRevisit(),
 	)
 
-	c.Visit(os.Getenv("LOGIN_URL"))
-
-	cookies := c.Cookies(os.Getenv("TOP_URL"))
-	for _, cookie := range cookies {
-		fmt.Printf("Cookie: %s = %s\n", cookie.Name, cookie.Value)
+	var sessionId string
+	if request.SessionId == "" {
+		c.Visit(buildLoginUrl(request.MailAddress, request.Password))
+		cookies := c.Cookies(os.Getenv("TOP_URL"))
+		for _, cookie := range cookies {
+			fmt.Printf("Cookie: %s = %s\n", cookie.Name, cookie.Value)
+			if cookie.Name == "JSESSIONID" {
+				sessionId = cookie.Value
+			}
+		}
+	} else {
+		sessionId = request.SessionId
+		c.OnRequest(func(r *colly.Request) {
+			r.Ctx.Put("cookie", "JSESSIONID="+sessionId)
+			r.Headers.Set("Cookie", r.Ctx.Get("cookie"))
+		})
 	}
 
 	var effects []EffectInfo
@@ -137,13 +218,30 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 			dlSecKey = u.Query().Get("__DL__SEC__KEY__")
 		})
 
-		objectName := fmt.Sprintf("images/%s.jpg", info.Name)
-		err := downloadImage(ctx, storageClient, "asa-o-experiment.appspot.com", fmt.Sprintf(imgUrl, info.Id), objectName)
-		if err != nil {
-			log.Printf("Error downloading image: %v", err)
-		} else {
-			fmt.Printf("Image saved to Firebase Storage: %s\n", objectName)
+		if false {
+			isEnableStorage := true
+			if isEnableStorage {
+				objectName := fmt.Sprintf("images/%s.jpg", info.Name)
+				err := downloadImage(ctx, storageClient, "asa-o-experiment.appspot.com", fmt.Sprintf(imgUrl, info.Id), objectName)
+				if err != nil {
+					log.Printf("Error downloading image: %v", err)
+				} else {
+					fmt.Printf("Image saved to Firebase Storage: %s\n", objectName)
+				}
+			} else {
+				imagePath := fmt.Sprintf("bin/images/%s.jpg", info.Name)
+				err := downloadImageLocal(fmt.Sprintf(imgUrl, info.Id), imagePath)
+				if err != nil {
+					log.Printf("Error downloading image: %v", err)
+				} else {
+					fmt.Printf("Image saved to %s\n", imagePath)
+				}
+			}
 		}
+	})
+	var pagerNextExists bool
+	c.OnHTML("li.pagerNext", func(e *colly.HTMLElement) {
+		pagerNextExists = true
 	})
 
 	c.OnError(func(_ *colly.Response, err error) {
@@ -160,15 +258,26 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	for _, info := range effects {
 		fmt.Fprintf(file, "HashId: %s\nId: %s\nName: %s\n\n", info.HashId, info.Id, info.Name)
 	}
+	// err = downloadFileFromStorage(ctx, storageClient, "asa-o-experiment.appspot.com",
+	// 	"images/LUPINⅢ1st Fujiko.jpg", "bin/images/LUPINⅢ1st Fujiko.jpg")
+	// if err != nil {
+	// 	log.Fatalf("Failed to download file from Firebase Storage: %v", err)
+	// } else {
+	// 	fmt.Println("File downloaded successfully")
+	// }
 
 	response := Response{
-		DlSecKey: dlSecKey,
-		Effects:  effects,
+		SessionId: sessionId,
+		DlSecKey:  dlSecKey,
+		Effects:   effects,
+		IsNext:    pagerNextExists,
 	}
 
+	// firestoreへの書き込み
 	_, _, err = client.Collection("effects").Add(ctx, map[string]interface{}{
-		"dlSecKey": response.DlSecKey,
-		"effects":  response.Effects,
+		"seccionId": response.SessionId,
+		"dlSecKey":  response.DlSecKey,
+		"effects":   response.Effects,
 	})
 	if err != nil {
 		log.Fatalf("Failed adding data to Firestore: %v", err)
