@@ -44,6 +44,7 @@ type RequestInfo struct {
 
 func init() {
 	functions.HTTP("GetEffectList", GetEffectList)
+	functions.HTTP("ChangeEffect", ChangeEffect)
 }
 
 func extractHashId(link string) string {
@@ -278,6 +279,76 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	// if err != nil {
 	// 	log.Fatalf("Failed adding data to Firestore: %v", err)
 	// }
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+type RequestChangeEffect struct {
+	SessionId string `json:"sessionId"`
+	HashId    string `json:"hashId"`
+	DlSecKey  string `json:"dlSecKey"`
+}
+
+type ResponseChangeEffect struct {
+	SessionId string `json:"sessionId"`
+	DlSecKey  string `json:"dlSecKey"`
+}
+
+func ChangeEffect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	// CORS対応 プリフライトリクエストの場合は204を返す
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(204)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// JSONデコード
+	var request RequestChangeEffect
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	godotenv.Load()
+
+	c := colly.NewCollector(
+		colly.AllowURLRevisit(),
+	)
+
+	sessionId := request.SessionId
+	c.OnRequest(func(r *colly.Request) {
+		r.Ctx.Put("cookie", "JSESSIONID="+sessionId)
+		r.Headers.Set("Cookie", r.Ctx.Get("cookie"))
+	})
+
+	var dlSecKey string = ""
+	c.OnHTML("div.dfultSlct", func(e *colly.HTMLElement) {
+		link := e.ChildAttr("a", "href")
+		u, _ := url.Parse(link)
+		dlSecKey = u.Query().Get("__DL__SEC__KEY__")
+	})
+
+	c.OnError(func(_ *colly.Response, err error) {
+		log.Fatalf("Error fetching URL: %v", err)
+	})
+
+	c.Visit(fmt.Sprintf(os.Getenv("CHANGE_URL"), request.HashId, 0, request.DlSecKey))
+
+	response := ResponseChangeEffect{
+		SessionId: sessionId,
+		DlSecKey:  dlSecKey,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
