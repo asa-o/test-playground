@@ -133,6 +133,16 @@ func buildLoginUrl(mailAddress string, password string) string {
 }
 
 func GetEffectList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	// CORS対応 プリフライトリクエストの場合は204を返す
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(204)
+		return
+	}
+
 	// リクエストメソッドのチェック
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -259,15 +269,15 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 		IsNext:    pagerNextExists,
 	}
 
-	// firestoreへの書き込み
-	_, _, err = client.Collection("effects").Add(ctx, map[string]interface{}{
-		"seccionId": response.SessionId,
-		"dlSecKey":  response.DlSecKey,
-		"effects":   response.Effects,
-	})
-	if err != nil {
-		log.Fatalf("Failed adding data to Firestore: %v", err)
-	}
+	// // firestoreへの書き込み
+	// _, _, err = client.Collection("effects").Add(ctx, map[string]interface{}{
+	// 	"seccionId": response.SessionId,
+	// 	"dlSecKey":  response.DlSecKey,
+	// 	"effects":   response.Effects,
+	// })
+	// if err != nil {
+	// 	log.Fatalf("Failed adding data to Firestore: %v", err)
+	// }
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
