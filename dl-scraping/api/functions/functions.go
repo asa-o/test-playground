@@ -293,6 +293,7 @@ type RequestChangeEffect struct {
 }
 
 type ResponseChangeEffect struct {
+	Succeed   bool   `json:"succeed"`
 	SessionId string `json:"sessionId"`
 	DlSecKey  string `json:"dlSecKey"`
 }
@@ -332,20 +333,35 @@ func ChangeEffect(w http.ResponseWriter, r *http.Request) {
 		r.Headers.Set("Cookie", r.Ctx.Get("cookie"))
 	})
 
-	var dlSecKey string = ""
+	dlSecKey := ""
 	c.OnHTML("div.dfultSlct", func(e *colly.HTMLElement) {
 		link := e.ChildAttr("a", "href")
 		u, _ := url.Parse(link)
 		dlSecKey = u.Query().Get("__DL__SEC__KEY__")
 	})
 
+	succeed := true
+	c.OnHTML("div#error", func(e *colly.HTMLElement) {
+		// セッションが切れている場合はエラーを返す
+		log.Print("Session expired")
+		sessionId = ""
+		dlSecKey = ""
+		succeed = false
+	})
+
+	// // レスポンスの内容をすべてログに出力
+	// c.OnResponse(func(r *colly.Response) {
+	// 	log.Printf("Response received: %s", string(r.Body))
+	// })
+
 	c.OnError(func(_ *colly.Response, err error) {
-		log.Fatalf("Error fetching URL: %v", err)
+		log.Printf("Error fetching URL: %v", err)
 	})
 
 	c.Visit(fmt.Sprintf(os.Getenv("CHANGE_URL"), request.HashId, 0, request.DlSecKey))
 
 	response := ResponseChangeEffect{
+		Succeed:   succeed,
 		SessionId: sessionId,
 		DlSecKey:  dlSecKey,
 	}
