@@ -1,10 +1,11 @@
 "use client";
 
 import { EffectInfo } from "../types/effects";
+import { useAtom } from "jotai";
+import { posessionEffectAtom, posessionEffectStore } from "@/stores/posessionEffect";
 import { ResponseGetEffectList } from "../types/responses";
 import LocalDB from "@/stores/localDb";
-
-const sprintf = require("sprintf-js").sprintf;
+import { use } from "react";
 
 class EffectService {
   async getList(email: string, password: string, progressCallback: (progress: EffectInfo[]) => void): Promise<void> {
@@ -57,7 +58,19 @@ class EffectService {
     }
   }
 
-  renewalPossesionList(effects: EffectInfo[]): void {}
+  renewalPossesionList(effects: EffectInfo[]): void {
+    posessionEffectStore.set(posessionEffectAtom, (prev) => {
+      const newEffects = prev.concat(effects);
+      return newEffects;
+    });
+  }
+
+  async getImage(effectId: string): Promise<Blob | null> {
+    const image = await LocalDB.getInstance().effectImage.get(effectId);
+    return image ? image.image : null;
+  }
+
+  async getAllList() {}
 
   async getAllImages() {
     return LocalDB.getInstance().effectImage.getAllDatas();

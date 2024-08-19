@@ -1,0 +1,16 @@
+.imageContainer {
+  display: flex;
+  flex-wrap: wrap;
+  overflow-y: scroll;
+  max-height: 1000px;
+}
+
+.imageWrapper {
+  flex: 1 0 30%;
+  margin: 5px;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+}
