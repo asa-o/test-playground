@@ -1,0 +1,22 @@
+.container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 20px;
+}
+
+.item {
+  flex: 0 1 30%;
+  text-align: center;
+  margin: 0 10px;
+  box-sizing: border-box;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+}

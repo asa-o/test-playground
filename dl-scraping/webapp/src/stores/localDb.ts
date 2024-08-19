@@ -58,7 +58,8 @@ class LocalDBBase {
   async add(value: any) {
     const existing = await this.get(value.id);
     if (existing) {
-      throw new Error(`ID ${value.id} already exists`);
+      //      throw new Error(`ID ${value.id} already exists`);
+      return await this.set(value);
     }
     return await this.db?.add(this.storeName, value);
   }

@@ -2,21 +2,27 @@
 
 import { useState } from "react";
 import { useAtom } from "jotai";
-import { posessionEffectAtom } from "@/stores/posessionEffect";
 import Image from "next/image";
 import { useEffect } from "react";
 import { EffectInfo } from "../types/effects";
 import effectService from "@/services/effectService";
 import LocalDB from "@/stores/localDb";
 import styles from "./page.module.css";
+import EffectListView from "@/components/EffectListView";
+import { posessionEffectAtom, posessionEffectStore } from "@/stores/posessionEffect";
 
 export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [results, setResults] = useState<EffectInfo[]>([]);
   const [images, setImages] = useState<{ id: string; image: Blob }[]>([]);
+  const posessionEffects = posessionEffectStore.get(posessionEffectAtom);
+  const [count, setCount] = useState(0);
 
-  useEffect(() => {}, []);
+  useEffect(() => {
+    // posessionEffectsの変更を監視
+    console.log(posessionEffects);
+  }, [posessionEffects]);
 
   const handleSubmit = async () => {
     try {
@@ -24,6 +30,7 @@ export default function Home() {
         progress.map((effect) => {
           console.log(effect.Name);
         });
+        setCount((prev) => prev + progress.length);
       });
     } catch (e) {
       console.error(e);
@@ -59,14 +66,21 @@ export default function Home() {
           </div>
         ))}
       </div>
-      <div className={styles.imageContainer}>
-        {images.map((image, index) => (
-          <div key={index} className={styles.imageWrapper}>
-            <p>ID: {image.id}</p>
-            <img src={URL.createObjectURL(image.image)} alt={`Image ${index}`} className={styles.image} />
+
+      <p>取得数: {count}</p>
+      {posessionEffects.length > 0 && (
+        <>
+          <EffectListView />
+          <div className={styles.imageContainer}>
+            {images.map((image, index) => (
+              <div key={index} className={styles.imageWrapper}>
+                <p>ID: {image.id}</p>
+                <img src={URL.createObjectURL(image.image)} alt={`Image ${index}`} className={styles.image} />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </>
   );
 }
