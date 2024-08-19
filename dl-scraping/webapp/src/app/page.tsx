@@ -7,11 +7,13 @@ import Image from "next/image";
 import { useEffect } from "react";
 import { EffectInfo } from "../types/effects";
 import effectService from "@/services/effectService";
+import LocalDB from "@/stores/localDb";
 
 export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [results, setResults] = useState<EffectInfo[]>([]);
+  const [images, setImages] = useState<{ id: string; image: Blob }[]>([]);
 
   useEffect(() => {}, []);
 
@@ -22,6 +24,15 @@ export default function Home() {
           console.log(effect.Name);
         });
       });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleGetAllImages = async () => {
+    try {
+      const imageResults = await effectService.getAllImages();
+      if (imageResults != null) setImages(imageResults);
     } catch (e) {
       console.error(e);
     }
@@ -38,11 +49,20 @@ export default function Home() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <button onClick={handleSubmit}>実行</button>
+        <button onClick={handleGetAllImages}>画像を取得</button>
       </div>
       <div>
         {results.map((result, index) => (
           <div key={index}>
             <p>{result.Name}</p>
+          </div>
+        ))}
+      </div>
+      <div>
+        {images.map((image, index) => (
+          <div key={index}>
+            <p>ID: {image.id}</p>
+            <img src={URL.createObjectURL(image.image)} alt={`Image ${index}`} />
           </div>
         ))}
       </div>

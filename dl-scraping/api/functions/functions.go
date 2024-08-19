@@ -44,6 +44,8 @@ type RequestInfo struct {
 
 func init() {
 	functions.HTTP("GetEffectList", GetEffectList)
+	functions.HTTP("ChangeEffect", ChangeEffect)
+	functions.HTTP("GetEffectImage", GetEffectImage)
 }
 
 func extractHashId(link string) string {
@@ -278,6 +280,200 @@ func GetEffectList(w http.ResponseWriter, r *http.Request) {
 	// if err != nil {
 	// 	log.Fatalf("Failed adding data to Firestore: %v", err)
 	// }
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+type RequestGetEffectImage struct {
+	EffectId string `json:"effectId"`
+}
+
+type ResponseGetEffectImage struct {
+	Succeed bool   `json:"succeed"`
+	Image   string `json:"image"`
+}
+
+func GetEffectImage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(204)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request RequestGetEffectImage
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	encodedServiceAccountKey := os.Getenv("SERVICE_ACCOUNT_KEY")
+	if encodedServiceAccountKey == "" {
+		http.Error(w, "Service account key is not set", http.StatusInternalServerError)
+		return
+	}
+
+	serviceAccountKey, err := base64.StdEncoding.DecodeString(encodedServiceAccountKey)
+	if err != nil {
+		http.Error(w, "Failed to decode service account key", http.StatusInternalServerError)
+		return
+	}
+
+	// Storageクライアントの初期化
+	ctx := context.Background()
+	sa := option.WithCredentialsJSON(serviceAccountKey)
+	storageClient, err := storage.NewClient(ctx, sa)
+	if err != nil {
+		log.Fatalf("Failed to create Storage client: %v", err)
+	}
+	defer storageClient.Close()
+
+	// storageにあればそれを返す なければダウンロードして返し、storageに保存
+	objectName := fmt.Sprintf("images/%s.jpg", request.EffectId)
+	bucket := storageClient.Bucket("asa-o-experiment.appspot.com")
+	object := bucket.Object(objectName)
+
+	var imageData []byte
+	// ファイルが存在するかチェック
+	_, err = object.Attrs(ctx)
+	if err == nil {
+		reader, err := object.NewReader(ctx)
+		if err != nil {
+			http.Error(w, "Failed to read existing image", http.StatusInternalServerError)
+			return
+		}
+		defer reader.Close()
+
+		imageData, err = io.ReadAll(reader)
+		if err != nil {
+			http.Error(w, "Failed to read image data", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		url := fmt.Sprintf(os.Getenv("EFFECT_IMAGE_URL"), request.EffectId)
+
+		resp, err := http.Get(url)
+		if err != nil {
+			http.Error(w, "download error", http.StatusForbidden)
+			return
+		}
+		defer resp.Body.Close()
+
+		writer := object.NewWriter(ctx)
+		defer writer.Close()
+
+		_, err = io.Copy(writer, resp.Body)
+		if err != nil {
+			http.Error(w, "Failed Download Image", http.StatusInternalServerError)
+			return
+		}
+
+		imageData, err = io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "Failed to read image data", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	encodedImage := base64.StdEncoding.EncodeToString(imageData)
+	response := ResponseGetEffectImage{
+		Succeed: true,
+		Image:   encodedImage,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+type RequestChangeEffect struct {
+	SessionId string `json:"sessionId"`
+	HashId    string `json:"hashId"`
+	DlSecKey  string `json:"dlSecKey"`
+}
+
+type ResponseChangeEffect struct {
+	Succeed   bool   `json:"succeed"`
+	SessionId string `json:"sessionId"`
+	DlSecKey  string `json:"dlSecKey"`
+}
+
+func ChangeEffect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	// CORS対応 プリフライトリクエストの場合は204を返す
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(204)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// JSONデコード
+	var request RequestChangeEffect
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	godotenv.Load()
+
+	c := colly.NewCollector(
+		colly.AllowURLRevisit(),
+	)
+
+	sessionId := request.SessionId
+	c.OnRequest(func(r *colly.Request) {
+		r.Ctx.Put("cookie", "JSESSIONID="+sessionId)
+		r.Headers.Set("Cookie", r.Ctx.Get("cookie"))
+	})
+
+	dlSecKey := ""
+	c.OnHTML("div.dfultSlct", func(e *colly.HTMLElement) {
+		link := e.ChildAttr("a", "href")
+		u, _ := url.Parse(link)
+		dlSecKey = u.Query().Get("__DL__SEC__KEY__")
+	})
+
+	succeed := true
+	c.OnHTML("div#error", func(e *colly.HTMLElement) {
+		// セッションが切れている場合はエラーを返す
+		log.Print("Session expired")
+		sessionId = ""
+		dlSecKey = ""
+		succeed = false
+	})
+
+	// // レスポンスの内容をすべてログに出力
+	// c.OnResponse(func(r *colly.Response) {
+	// 	log.Printf("Response received: %s", string(r.Body))
+	// })
+
+	c.OnError(func(_ *colly.Response, err error) {
+		log.Printf("Error fetching URL: %v", err)
+	})
+
+	c.Visit(fmt.Sprintf(os.Getenv("CHANGE_URL"), request.HashId, 0, request.DlSecKey))
+
+	response := ResponseChangeEffect{
+		Succeed:   succeed,
+		SessionId: sessionId,
+		DlSecKey:  dlSecKey,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {

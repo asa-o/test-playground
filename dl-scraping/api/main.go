@@ -13,7 +13,9 @@ func main() {
 	ctx := context.Background()
 
 	// 関数を登録
-	funcframework.RegisterHTTPFunctionContext(ctx, "/", functions.GetEffectList)
+	funcframework.RegisterHTTPFunctionContext(ctx, "/get-effect-list", functions.GetEffectList)
+	funcframework.RegisterHTTPFunctionContext(ctx, "/change-effect", functions.ChangeEffect)
+	funcframework.RegisterHTTPFunctionContext(ctx, "/get-effect-image", functions.GetEffectImage)
 	port := "8081"
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = envPort

@@ -89,3 +89,21 @@ func TestGetEffectList_2page(t *testing.T) {
 	}
 
 }
+
+func TestChangeEffect(t *testing.T) {
+	godotenv.Load()
+
+	bodyJSON := `{"sessionId":"","hashId":"1","dlSecKey":"1"}`
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(bodyJSON))
+
+	ChangeEffect(response, req)
+	if response.Code != http.StatusOK {
+		t.Errorf("expected status OK; got %v", response.Code)
+	}
+
+	var res Response
+	if err := json.NewDecoder(response.Body).Decode(&res); err != nil {
+		return
+	}
+}
