@@ -4,8 +4,6 @@ import { EffectInfo } from "../types/effects";
 import { ResponseGetEffectList } from "../types/responses";
 import LocalDB from "@/stores/localDb";
 
-const sprintf = require("sprintf-js").sprintf;
-
 class EffectService {
   async getList(email: string, password: string, progressCallback: (progress: EffectInfo[]) => void): Promise<void> {
     let pagerNextExists = true;

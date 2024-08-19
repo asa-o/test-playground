@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { EffectInfo } from "../types/effects";
 import effectService from "@/services/effectService";
 import LocalDB from "@/stores/localDb";
+import styles from "./page.module.css";
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -58,11 +59,11 @@ export default function Home() {
           </div>
         ))}
       </div>
-      <div>
+      <div className={styles.imageContainer}>
         {images.map((image, index) => (
-          <div key={index}>
+          <div key={index} className={styles.imageWrapper}>
             <p>ID: {image.id}</p>
-            <img src={URL.createObjectURL(image.image)} alt={`Image ${index}`} />
+            <img src={URL.createObjectURL(image.image)} alt={`Image ${index}`} className={styles.image} />
           </div>
         ))}
       </div>
