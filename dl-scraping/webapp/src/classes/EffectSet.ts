@@ -8,7 +8,7 @@ class EffectSet {
   async fetchEffectList(email: string, password: string): Promise<void> {
     try {
       const jsonData = JSON.stringify({ sessionId: "", page: 1, mailAddress: email, password: password });
-      const response = await fetch("http://localhost:8081/get-effect-list", {
+      const response = await fetch(process.env.NEXT_PUBLIC_FUNCTION_HOST + "get-effect-list", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
