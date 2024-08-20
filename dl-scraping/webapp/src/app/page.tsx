@@ -70,7 +70,11 @@ export default function Home() {
       <p>取得数: {count}</p>
       {posessionEffects.length > 0 && (
         <>
-          <EffectListView />
+          <EffectListView
+            onImageClick={(item) => {
+              effectService.change(item.HashId);
+            }}
+          />
           <div className={styles.imageContainer}>
             {images.map((image, index) => (
               <div key={index} className={styles.imageWrapper}>

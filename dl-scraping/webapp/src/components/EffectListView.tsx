@@ -10,9 +10,10 @@ interface ItemProps {
   index: number;
   style: React.CSSProperties;
   data: EffectInfo[];
+  onImageClick?: (item: EffectInfo) => void;
 }
 
-const Row: React.FC<ItemProps> = ({ index, style, data }) => {
+const Row: React.FC<ItemProps> = ({ index, style, data, onImageClick }) => {
   const [imageSrc, setImageSrc] = React.useState<string[]>([]);
   const itemsPerRow = 3;
   const startIndex = index * itemsPerRow;
@@ -41,7 +42,12 @@ const Row: React.FC<ItemProps> = ({ index, style, data }) => {
         <div key={i} className={styles.item}>
           {item.Name}
           {imageSrc && imageSrc[i] && (
-            <img src={imageSrc[i]} alt={`Image ${startIndex + i}`} className={styles.image} />
+            <img
+              src={imageSrc[i]}
+              alt={`Image ${startIndex + i}`}
+              className={styles.image}
+              onClick={() => onImageClick && onImageClick(item)}
+            />
           )}
         </div>
       ))}
@@ -53,13 +59,13 @@ const Row: React.FC<ItemProps> = ({ index, style, data }) => {
   );
 };
 
-const EffectListView: React.FC = () => {
+const EffectListView: React.FC<{ onImageClick?: (item: EffectInfo) => void }> = ({ onImageClick }) => {
   const posessionEffects = posessionEffectStore.get(posessionEffectAtom);
   const itemCount = Math.ceil(posessionEffects.length / 3);
 
   return (
     <List height={1000} itemCount={itemCount} itemSize={300} width={1200} itemData={posessionEffects}>
-      {Row}
+      {({ index, style, data }) => <Row index={index} style={style} data={data} onImageClick={onImageClick} />}
     </List>
   );
 };

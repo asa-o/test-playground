@@ -3,9 +3,10 @@
 import { EffectInfo } from "../types/effects";
 import { useAtom } from "jotai";
 import { posessionEffectAtom, posessionEffectStore } from "@/stores/posessionEffect";
+import { ConnectInfoAtom, ConnectInfoStore } from "@/stores/workData";
 import { ResponseGetEffectList } from "../types/responses";
 import LocalDB from "@/stores/localDb";
-import { use } from "react";
+import { connect } from "http2";
 
 class EffectService {
   async getList(email: string, password: string, progressCallback: (progress: EffectInfo[]) => void): Promise<void> {
@@ -32,6 +33,10 @@ class EffectService {
       pagerNextExists = responseData.isNext;
       page++;
       progressCallback(responseData.effects);
+
+      ConnectInfoStore.set(ConnectInfoAtom, () => {
+        return { dlSecKey: responseData.dlSecKey, sessionId: responseData.sessionId };
+      });
     }
   }
 
@@ -74,6 +79,24 @@ class EffectService {
 
   async getAllImages() {
     return LocalDB.getInstance().effectImage.getAllDatas();
+  }
+
+  async change(hdshId: string) {
+    const connectInfo = ConnectInfoStore.get(ConnectInfoAtom);
+    const response = await fetch("http://localhost:8081/change-effect", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ sessionId: connectInfo.sessionId, hashId: hdshId, dlSecKey: connectInfo.dlSecKey }),
+    });
+
+    const data = await response.json();
+    if (data.succeed) {
+      ConnectInfoStore.set(ConnectInfoAtom, () => {
+        return { dlSecKey: data.dlSecKey, sessionId: data.sessionId };
+      });
+    }
   }
 }
 
