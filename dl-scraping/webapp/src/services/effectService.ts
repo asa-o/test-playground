@@ -20,7 +20,7 @@ class EffectService {
           ? JSON.stringify({ mailAddress: email, password: password, page: page })
           : JSON.stringify({ sessionId: sessionId, page: page });
 
-      const response = await fetch(process.env.NEXT_PUBLIC_FUNCTION_HOST + "get-effect-list", {
+      const response = await fetch("https://asia-northeast1-asa-o-experiment.cloudfunctions.net/get-effect-list", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -43,7 +43,7 @@ class EffectService {
   downloadImage(effects: EffectInfo[]): void {
     try {
       effects.map(async (effect) => {
-        const response = await fetch(process.env.NEXT_PUBLIC_FUNCTION_HOST + "get-effect-image", {
+        const response = await fetch("https://asia-northeast1-asa-o-experiment.cloudfunctions.net/get-effect-image", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -83,7 +83,7 @@ class EffectService {
 
   async change(hdshId: string) {
     const connectInfo = ConnectInfoStore.get(ConnectInfoAtom);
-    const response = await fetch(process.env.NEXT_PUBLIC_FUNCTION_HOST + "change-effect", {
+    const response = await fetch("https://asia-northeast1-asa-o-experiment.cloudfunctions.net/change-effect", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

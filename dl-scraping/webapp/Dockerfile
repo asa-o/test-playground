@@ -36,7 +36,6 @@ RUN yarn build
 FROM base AS runner
 WORKDIR /src/app
 
-ENV NEXT_PUBLIC_FUNCTION_HOST="https://asia-northeast1-asa-o-experiment.cloudfunctions.net/"
 ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
