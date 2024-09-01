@@ -46,6 +46,7 @@ func init() {
 	functions.HTTP("GetEffectList", GetEffectList)
 	functions.HTTP("ChangeEffect", ChangeEffect)
 	functions.HTTP("GetEffectImage", GetEffectImage)
+	functions.HTTP("Hello", Hello)
 }
 
 func extractHashId(link string) string {
@@ -479,4 +480,31 @@ func ChangeEffect(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+type ResponseHello struct {
+	Succeed bool   `json:"succeed"`
+	Message string `json:"message"`
+	Data    string `json:"data"`
+}
+
+func Hello(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+
+	// CORS対応 プリフライトリクエストの場合は204を返す
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(204)
+		return
+	}
+
+	response := ResponseHello{
+		Succeed: true,
+		Message: "ハロー hello world",
+		Data:    "Firebase Functionsのための",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
